@@ -5,28 +5,51 @@ import { EmojiHappyIcon } from "@heroicons/react/outline"
 import { CameraIcon, VideoCameraIcon } from "@heroicons/react/solid"
 import { useState } from 'react'
 import { useRef } from 'react'
-import { db } from '../firebase'
+import { storage } from '../firebase'
+import { db, collection, Timestamp } from '../firebase'
 import firebase from "../firebase"
-import { collection, addDoc } from 'firebase/firestore/lite'
-import { serverTimestamp } from 'firebase/firestore'
+// import { collection, addDoc } from 'firebase/firestore/lite'
+import { setDoc } from 'firebase/firestore'
 
 function InputBox() {
   const { data: session } = useSession();
   const inputRef = useRef(null);
   const filepickerRef = useRef(null);
-  const postsCollectionRef = collection(db, 'posts');
+  // const postsCollectionRef = collection(db, 'posts');
   const [imageToPost, setImageToPost] = useState(null);
 
-  const sendPost = (e) => {
+  // const uploadFile
+
+  const sendPost = async (e) => {
     e.preventDefault()
 
     if (!inputRef.current.value) return;
 
-    const docRef = addDoc(collection(db, "posts"), {
+    db.collection("posts").add({
       message: inputRef.current.value,
       name: session.user.name,
       email: session.user.email,
-      image: session.user.image
+      image: session.user.image,
+      // timestamp: Timestamp.fromDate(new Date("October 10, 2022"))
+    }).then(doc => {
+      if (imageToPost) {
+        const uploadTask = storage.ref(`posts/${doc.id}`).putString(imageToPost, "data_url")
+
+        removeImage();
+
+        uploadTask.on(
+          "state_change",
+          null,
+          (error) => console.error(error),
+          () => {
+            storage.ref(`posts/${doc.id}`).getDownloadURL().then(url => {
+              db.collection('posts').doc(doc.id).set({
+                postImage: url
+              }, { merge: true })
+            })
+          }
+        )
+      }
     })
 
     inputRef.current.value = "";
