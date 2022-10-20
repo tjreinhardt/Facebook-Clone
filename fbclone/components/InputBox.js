@@ -1,56 +1,50 @@
-import React from 'react'
-import { useSession } from 'next-auth/react'
-import Image from 'next/image'
-import { EmojiHappyIcon } from "@heroicons/react/outline"
-import { CameraIcon, VideoCameraIcon } from "@heroicons/react/solid"
-import { useState } from 'react'
-import { useRef } from 'react'
-import { storage } from '../firebase'
-import { db, collection, Timestamp } from '../firebase'
-import firebase from "../firebase"
-// import { collection, addDoc } from 'firebase/firestore/lite'
-import { setDoc } from 'firebase/firestore'
+import React, { useRef, useState } from "react";
+import Image from "next/image";
+import { useSession } from "next-auth/react";
+import { EmojiHappyIcon } from "@heroicons/react/outline";
+import { CameraIcon, VideoCameraIcon } from "@heroicons/react/solid";
+import { db, storage } from "../firebase";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  doc,
+  setDoc,
+} from "firebase/firestore";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
 
 function InputBox() {
   const { data: session } = useSession();
   const inputRef = useRef(null);
   const filepickerRef = useRef(null);
-  // const postsCollectionRef = collection(db, 'posts');
   const [imageToPost, setImageToPost] = useState(null);
 
-  // const uploadFile
-
-  const sendPost = async (e) => {
-    e.preventDefault()
-
+  const sendPost = (e) => {
+    e.preventDefault();
     if (!inputRef.current.value) return;
 
-    db.collection("posts").add({
+    addDoc(collection(db, "posts"), {
       message: inputRef.current.value,
       name: session.user.name,
       email: session.user.email,
       image: session.user.image,
-      // timestamp: Timestamp.fromDate(new Date("October 10, 2022"))
-    }).then(doc => {
+      timestamp: serverTimestamp(),
+    }).then((document) => {
       if (imageToPost) {
-        const uploadTask = storage.ref(`posts/${doc.id}`).putString(imageToPost, "data_url")
-
-        removeImage();
-
-        uploadTask.on(
-          "state_change",
-          null,
-          (error) => console.error(error),
-          () => {
-            storage.ref(`posts/${doc.id}`).getDownloadURL().then(url => {
-              db.collection('posts').doc(doc.id).set({
-                postImage: url
-              }, { merge: true })
-            })
-          }
-        )
+        const storageRef = ref(storage, `posts/${document.id}`);
+        uploadString(storageRef, imageToPost, "data_url").then((snapshot) => {
+          getDownloadURL(snapshot.ref).then((URL) => {
+            setDoc(
+              doc(db, "posts", document.id),
+              { postImage: URL },
+              { merge: true }
+            );
+            console.log("File available at ", URL);
+          });
+          removeImage();
+        });
       }
-    })
+    });
 
     inputRef.current.value = "";
   };
@@ -58,17 +52,16 @@ function InputBox() {
   const addImageToPost = (e) => {
     const reader = new FileReader();
     if (e.target.files[0]) {
-      reader.readAsDataURL(e.target.files[0])
+      reader.readAsDataURL(e.target.files[0]);
     }
-
-    reader.onload = (readerEvent) => {
-      setImageToPost(readerEvent.target.result)
-    }
-  }
+    reader.onload = (readerevent) => {
+      setImageToPost(readerevent.target.result);
+    };
+  };
 
   const removeImage = () => {
-    setImageToPost(null)
-  }
+    setImageToPost(null);
+  };
 
   return (
     <div className='bg-white p-2 rounded-2xl shadow-md text-gray-500 font-medium mt-6'>
